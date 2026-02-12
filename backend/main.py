@@ -7,7 +7,9 @@ from activity import generate_activities
 from notes import generate_notes
 app = FastAPI()
 
-@app.post("/generate")
+from normalizer import GenerateResponse
+@app.post("/generate", response_model=GenerateResponse)
+
 def generate(content: CoreInput):
 
     time_data = calculate_time_distribution(content.duration_minutes)
