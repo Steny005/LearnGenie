@@ -1,39 +1,13 @@
-import requests
-def generate_flowchart(topic: str):
-    prompt = f"""
-You are an expert systems educator.
+def convert_to_mermaid(flowchart_text: str):
 
-Generate a flowchart representation for the topic: "{topic}".
+    steps = [step.strip() for step in flowchart_text.split("→")]
 
-Rules:
-- Show cause → process → decision → outcome progression.
-- Include logical dependencies.
-- If relevant, include decision points (Yes/No branches).
-- Avoid generic words like "Introduction".
-- Each node must be a meaningful process step.
-- Output in arrow-based format.
-- No explanation text.
+    mermaid_lines = []
+    mermaid_lines.append("flowchart TD")
 
-Format example:
+    for i in range(len(steps) - 1):
+        current_node = f"N{i}[{steps[i]}]"
+        next_node = f"N{i+1}[{steps[i+1]}]"
+        mermaid_lines.append(f"{current_node} --> {next_node}")
 
-Start → Resource Request → Resource Allocation Check  
-If Available → Allocate Resource → Continue Execution  
-If Not Available → Add to Wait Queue → Check for Circular Wait  
-Circular Wait Detected → Deadlock State  
-No Circular Wait → Resume Execution  
-End
-
-Now generate the structured flowchart for:
-{topic}
-"""
-    response = requests.post(
-         "http://localhost:11434/api/generate",
-        json={
-            "model": "mistral",
-            "prompt": prompt,
-            "stream": False
-        }
-        >
-    )
- 
-
+    return "\n".join(mermaid_lines)

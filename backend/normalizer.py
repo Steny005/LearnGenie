@@ -1,11 +1,12 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from pydantic import BaseModel
+
 class CoreInput(BaseModel):
     topic: str
+    description: Optional[str] = ""
     content: str
     class_level: str
-    duration_minutes: int
+    duration_minutes: Optional[int] = None
     teaching_mode: str
     complexity: str
     include_flowchart: bool = True

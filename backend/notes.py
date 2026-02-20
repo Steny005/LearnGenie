@@ -1,29 +1,72 @@
-import requests
-def generate_notes(topic: str, content: str, target_words: int):
-    prompt = f"""
-You are an expert educator tasked with creating concise and effective notes for the topic '{topic}'
-The notes must:
--be approximately {target_words} words in length
--be well structured with clear headings and subheadings
-- Include explanation, examples, and summary
-- Avoid unnecessary repetition
-- Focus on the provided content {content}  and go beyond it. we need structured, most precise correct notes on the {topic}
-"""
-   
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "mistral",
-            "prompt": prompt,
-            "stream": False
+import re
+
+def format_notes(topic: str, raw_notes: str, duration: int):
+
+    if not raw_notes:
+        return {
+            "title": topic,
+            "summary": "",
+            "sections": [],
+            "duration_minutes": duration
         }
-    )   
 
-    result = response.json()
-    generated_text = result.get("response","")
+    # 1️⃣ Extract first sentence as summary
+    sentences = raw_notes.split(".")
+    summary = sentences[0].strip() + "." if sentences else ""
 
-    return{
+    # 2️⃣ Detect headings (## or bold or uppercase lines)
+    sections = []
+    current_heading = "Introduction"
+    current_content = []
+
+    lines = raw_notes.split("\n")
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Detect markdown headings like ## Heading
+        if stripped.startswith("#"):
+            # Save previous section
+            if current_content:
+                sections.append({
+                    "heading": current_heading,
+                    "content": " ".join(current_content).strip()
+                })
+                current_content = []
+
+            current_heading = stripped.replace("#", "").strip()
+
+        # Detect bold headings like **Heading**
+        elif re.match(r"\*\*(.*?)\*\*", stripped):
+            if current_content:
+                sections.append({
+                    "heading": current_heading,
+                    "content": " ".join(current_content).strip()
+                })
+                current_content = []
+
+            current_heading = stripped.replace("*", "").strip()
+
+        else:
+            if stripped:
+                current_content.append(stripped)
+
+    # Append last section
+    if current_content:
+        sections.append({
+            "heading": current_heading,
+            "content": " ".join(current_content).strip()
+        })
+
+    # 3️⃣ Estimate reading time (200 words per minute)
+    word_count = len(raw_notes.split())
+    read_time = max(1, round(word_count / 200))
+
+    return {
         "title": topic,
-        "estimated_word_count": target_words,
-        "content": generated_text
-    } 
+        "summary": summary,
+        "sections": sections,
+        "estimated_read_time_minutes": read_time,
+        "duration_minutes": duration,
+        "word_count": word_count
+    }
