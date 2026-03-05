@@ -29,6 +29,24 @@ margin-top:30px;
 white-space:pre-wrap;
 }
 
+#downloadBtn {
+  display: none;
+  margin-top: 20px;
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+#downloadBtn:hover {
+  background: #219150;
+}
+
 </style>
 
 </head>
@@ -40,11 +58,11 @@ white-space:pre-wrap;
 <p>
 Enter topic or commands like:
 <br>
-<b>Photosynthesis</b>
+<b>Photosynthesis</b> (Generates notes)
 <br>
-<b>Photosynthesis @flowchart</b>
+<b>Photosynthesis @flowchart</b> (or "Photosynthesis flowchart")
 <br>
-<b>Photosynthesis @activities</b>
+<b>Photosynthesis @activities</b> (or "Photosynthesis activity")
 </p>
 
 <textarea id="topic"></textarea>
@@ -55,17 +73,54 @@ Duration (minutes):
 
 <input id="duration" type="number" value="45">
 
-<br><br>
-
 <button id="generateBtn" onclick="generate()">Generate</button>
 
 <span id="loading" style="display:none; margin-left:10px;">
 ⏳ Generating lesson...
 </span>
+<br><br>
+<input type="file" id="pdfFile" accept=".pdf">
+<button onclick="uploadPDF()">Upload PDF</button>
+
 
 <div id="output"></div>
+<button id="downloadBtn" onclick="downloadAsPNG()">📥 Download Flowchart (PNG)</button>
 
 <script>
+
+   async function uploadPDF(){
+
+const fileInput = document.getElementById("pdfFile")
+
+if(fileInput.files.length === 0){
+alert("Please select a PDF file")
+return
+}
+
+const file = fileInput.files[0]
+
+const formData = new FormData()
+formData.append("file", file)
+
+try{
+
+const response = await fetch("http://127.0.0.1:8000/upload_pdf",{
+method:"POST",
+body:formData
+})
+
+const data = await response.json()
+
+document.getElementById("topic").value = data.topic_text
+
+}catch(error){
+
+console.error(error)
+alert("PDF upload failed")
+
+}
+
+}
 
 mermaid.initialize({startOnLoad:false})
 async function generate(){
@@ -76,6 +131,7 @@ const duration=parseInt(document.getElementById("duration").value)
 const button=document.getElementById("generateBtn")
 const loading=document.getElementById("loading")
 const output=document.getElementById("output")
+const downloadBtn=document.getElementById("downloadBtn")
 
 if(!topic.trim()){
 alert("Please enter a topic")
@@ -85,8 +141,8 @@ return
 // disable button
 button.disabled=true
 loading.style.display="inline"
-
 output.innerHTML=""
+downloadBtn.style.display="none"
 
 try{
 
@@ -98,6 +154,10 @@ body:JSON.stringify({text:topic,duration:duration})
 
 
 const data=await response.json()
+
+if(!response.ok){
+  throw new Error(data.detail || "Server error")
+}
 
 if(data.type==="notes"){
 
@@ -123,15 +183,23 @@ data.data.edges.forEach(edge=>{
 mermaidCode+=`${edge.from_node} --> ${edge.to_node}\n`
 })
 
-const {svg}=await mermaid.render("chart",mermaidCode)
+const renderId = "chart_" + Date.now();
+let svg;
+try {
+  const result = await mermaid.render(renderId, mermaidCode);
+  svg = result.svg;
+} catch (renderErr) {
+  throw new Error("Mermaid render failed: " + renderErr.message);
+}
 
 output.innerHTML=svg
+downloadBtn.style.display="inline-block"
 
 }
 
 }catch(err){
 
-output.textContent="Error generating lesson"
+output.textContent="⚠️ Error: " + err.message
 console.error(err)
 
 }
@@ -140,6 +208,67 @@ console.error(err)
 button.disabled=false
 loading.style.display="none"
 
+}
+
+async function downloadAsPNG() {
+    const output = document.getElementById("output");
+    const svgElement = output.querySelector("svg");
+    if (!svgElement) return;
+
+    // Use current SVG dimensions
+    const rect = svgElement.getBoundingClientRect();
+    const padding = 20;
+    const width = rect.width + (padding * 2);
+    const height = rect.height + (padding * 2);
+
+    // Create a clone and ensure dimensions are set
+    const svgClone = svgElement.cloneNode(true);
+    svgClone.setAttribute("width", rect.width);
+    svgClone.setAttribute("height", rect.height);
+    
+    // Add SVG namespace if missing
+    if (!svgClone.getAttribute("xmlns")) {
+        svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    }
+
+    // Inline all Mermaid styles to ensure PNG matches SVG exactly
+    const styles = document.querySelectorAll('style');
+    let combinedStyles = '';
+    styles.forEach(s => { if (s.innerHTML.includes('mermaid')) combinedStyles += s.innerHTML; });
+    
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = combinedStyles;
+    svgClone.insertBefore(styleElement, svgClone.firstChild);
+
+    // Use Blob for higher stability than simple data URLs
+    const svgData = new XMLSerializer().serializeToString(svgClone);
+    const svgBlob = new Blob([svgData], {type: "image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(svgBlob);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+
+    const img = new Image();
+    img.onload = function() {
+        // Draw white background
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw centered with padding
+        ctx.drawImage(img, padding, padding);
+        
+        const pngUrl = canvas.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = pngUrl;
+        a.download = "learngenie-flowchart.png";
+        a.click();
+        
+        URL.revokeObjectURL(url);
+    };
+    img.onerror = (e) => console.error("Canvas draw error:", e);
+    img.src = url;
 }
 
 </script>
