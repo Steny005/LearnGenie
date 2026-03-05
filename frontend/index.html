@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>LearnGenie</title>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+
+<style>
+
+body{
+font-family: Arial;
+padding:40px;
+background:#f5f6fa;
+}
+
+textarea{
+width:600px;
+height:120px;
+}
+
+button{
+padding:10px 20px;
+margin-top:10px;
+}
+
+#output{
+margin-top:30px;
+white-space:pre-wrap;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>LearnGenie</h1>
+
+<p>
+Enter topic or commands like:
+<br>
+<b>Photosynthesis</b>
+<br>
+<b>Photosynthesis @flowchart</b>
+<br>
+<b>Photosynthesis @activities</b>
+</p>
+
+<textarea id="topic"></textarea>
+
+<br><br>
+
+Duration (minutes):
+
+<input id="duration" type="number" value="45">
+
+<br><br>
+
+<button id="generateBtn" onclick="generate()">Generate</button>
+
+<span id="loading" style="display:none; margin-left:10px;">
+⏳ Generating lesson...
+</span>
+
+<div id="output"></div>
+
+<script>
+
+mermaid.initialize({startOnLoad:false})
+async function generate(){
+
+const topic=document.getElementById("topic").value
+const duration=parseInt(document.getElementById("duration").value)
+
+const button=document.getElementById("generateBtn")
+const loading=document.getElementById("loading")
+const output=document.getElementById("output")
+
+if(!topic.trim()){
+alert("Please enter a topic")
+return
+}
+
+// disable button
+button.disabled=true
+loading.style.display="inline"
+
+output.innerHTML=""
+
+try{
+
+const response = await fetch("http://127.0.0.1:8000/generate",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({text:topic,duration:duration})
+})
+
+
+const data=await response.json()
+
+if(data.type==="notes"){
+
+output.textContent=data.data
+
+}
+
+if(data.type==="activity"){
+
+output.textContent=data.data
+
+}
+
+if(data.type==="flowchart"){
+
+let mermaidCode="flowchart TD\n"
+
+data.data.nodes.forEach(node=>{
+mermaidCode+=`${node.id}["${node.text}"]\n`
+})
+
+data.data.edges.forEach(edge=>{
+mermaidCode+=`${edge.from_node} --> ${edge.to_node}\n`
+})
+
+const {svg}=await mermaid.render("chart",mermaidCode)
+
+output.innerHTML=svg
+
+}
+
+}catch(err){
+
+output.textContent="Error generating lesson"
+console.error(err)
+
+}
+
+// enable button again
+button.disabled=false
+loading.style.display="none"
+
+}
+
+</script>
+
+</body>
+</html>

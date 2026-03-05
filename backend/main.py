@@ -1,59 +1,78 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
-import json
 
-from time_alloc import calculate_time_distribution
-from generate import generate_content
-from notes import format_notes
+from notes_generator import generate_notes
+from activity_generator import generate_activity
+from duration_logic import calculate_target_words
+
+from flowchart_module.app.services.llm_service import generate_flowchart_from_llm
+from flowchart_module.app.utils.parser import extract_valid_json
+
 
 app = FastAPI()
 
-DEFAULT_DURATION = 45
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class LessonInput(BaseModel):
-    topic: str
-    description: Optional[str] = ""
-    duration_minutes: Optional[int] = None
+class UserInput(BaseModel):
+    text: str
+    duration: int = 45
+
+def detect_command(text):
+
+    text = text.lower().strip()
+
+    if "@flowchart" in text:
+        return text.replace("@flowchart","").strip(), "flowchart"
+
+    if "@activities" in text:
+        return text.replace("@activities","").strip(), "activities"
+
+    return text, "notes"
+
+def detect_command(text):
+
+    if "@flowchart" in text:
+        return text.replace("@flowchart", "").strip(), "flowchart"
+
+    if "@activities" in text:
+        return text.replace("@activities", "").strip(), "activities"
+
+    return text.strip(), "notes"
 
 
 @app.post("/generate")
-def generate_lesson(data: LessonInput):
+def generate(data: UserInput):
 
-    # 1️⃣ Handle default duration safely
-    duration = data.duration_minutes or DEFAULT_DURATION
+    topic, command = detect_command(data.text)
 
-    # 2️⃣ Calculate structured time distribution
-    time_data = calculate_time_distribution(duration)
+    time_data = calculate_target_words(data.duration)
 
-    # 3️⃣ Call unified generator (Single AI call)
-    raw_output = generate_content(
-        topic=data.topic,
-        description=data.description,
-        target_words=time_data["target_words"]
-    )
+    if command == "flowchart":
 
-    # 4️⃣ Parse JSON safely
-    try:
-        parsed = json.loads(raw_output)
-    except Exception:
+        raw = generate_flowchart_from_llm(topic)
+        parsed = extract_valid_json(raw)
+
+        return {"type": "flowchart", "data": parsed}
+
+    elif command == "activities":
+
+        activity = generate_activity(topic)
+
+        return {"type": "activity", "data": activity}
+
+    else:
+
+        notes = generate_notes(topic, time_data["target_words"])
+
         return {
-            "error": "Model did not return valid JSON",
-            "raw_output": raw_output
+            "type": "notes",
+            "data": notes,
+            "structure": time_data
         }
-
-    # 5️⃣ Return structured response
-    return {
-        "topic": data.topic,
-        "total_duration": time_data["total_duration"],
-        "time_distribution": {
-            "intro": time_data["intro"],
-            "explanation": time_data["explanation"],
-            "examples": time_data["examples"],
-            "activities": time_data["activities"],
-            "recap": time_data["recap"]
-        },
-        "notes": parsed.get("notes"),
-        "flowchart": parsed.get("flowchart"),
-        "activity": parsed.get("activity")
-    }
