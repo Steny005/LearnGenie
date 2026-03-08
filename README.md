@@ -1,4 +1,4 @@
 - virtual environment is prefered
 - cd backend
 - uvicorn main:app reload
-- 
+- run html file
