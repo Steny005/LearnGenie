@@ -9,7 +9,7 @@ def generate_notes(topic, target_words):
     # Extremely concise for speed
     prompt = f"""
 EXPERT TEACHING NOTES for: {topic}.
-Max 150 words. Concise points only.
+Max {target_words} words. Concise points only.
 INTRO, KEY CONCEPTS (3), EXAMPLES (2), SUMMARY.
 """
 

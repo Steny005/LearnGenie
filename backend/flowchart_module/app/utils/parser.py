@@ -33,3 +33,21 @@ def extract_valid_json(text: str):
                         pass
         
         raise ValueError("Could not parse valid JSON from LLM output. Response was: " + text[:100])
+    
+def enforce_sequential_edges(data):
+    """
+    Ensures every node is connected sequentially.
+    Prevents missing edges and 'undefined' nodes in the graph.
+    """
+
+    nodes = data.get("nodes", [])
+    edges = []
+
+    for i in range(len(nodes) - 1):
+        edges.append({
+            "from_node": nodes[i]["id"],
+            "to_node": nodes[i + 1]["id"]
+        })
+
+    data["edges"] = edges
+    return data
