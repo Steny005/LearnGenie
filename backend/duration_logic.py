@@ -9,7 +9,8 @@ def calculate_target_words(duration_minutes):
     activities = duration_minutes * 0.15
     recap = duration_minutes * 0.05
 
-    target_words = min(int(note_minutes * 20), 500) # Balanced for quality and speed (sub 1 min)
+    # MVP compression factor
+    target_words = int(note_minutes * 14)
 
     return {
         "intro": round(intro),
